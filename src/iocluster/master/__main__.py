@@ -45,8 +45,19 @@ def handleConnection(c):
 
 			elif type(msg) == messages.SolveRequest:
 				problem_id = len(problems)
+				msg.Id = problem_id
 				problems.append(msg) # TODO do something useful
 				c.send(messages.SolveRequestResponse(problem_id))
+
+			elif type(msg) == messages.SolutionRequest:
+				try:
+					problem = problems[msg.Id]
+				except KeyError:
+					# Unknown problem.
+					# Documentation didn't say what to do now.
+					# So close connection.
+					return
+				c.send(messages.Solutions(problem.Id, problem.ProblemType, problem.Data, [dict(Type="Ongoing", ComputationsTime=0)])) # TODO SolveRequest.Data == CommonData?
 
 	except OSError: # eg. timeout or socket closure
 		# This one is dead.
