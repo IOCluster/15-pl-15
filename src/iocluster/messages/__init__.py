@@ -93,6 +93,11 @@ class Solutions(Message):
 		Namespace.__init__(self, ProblemType=ProblemType, Id=Id, CommonData=CommonData, Solutions=Solutions)
 Message.Types["Solutions"] = Solutions
 
+class DivideProblem(Message):
+	def __init__(self, Id, ProblemType, Data, ComputationalNodes, NodeID):
+		Namespace.__init__(self, ProblemType=ProblemType, Id=Id, Data=Data, ComputationalNodes=ComputationalNodes, NodeID=NodeID)
+Message.Types["DivideProblem"] = DivideProblem
+
 def parse(message):
 	message = message.decode("utf-8")
 	t, data = message.split(" ", 1)

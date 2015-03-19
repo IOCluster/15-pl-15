@@ -26,13 +26,19 @@ config.backup_masters = []
 def handleMessages(config):
 	for msg in config.master:
 		print(str(msg))
+
 		if type(msg) == messages.NoOperation:
 			config.backup_masters = msg.BackupCommunicationServers
+
 		elif type(msg) == messages.RegisterResponse:
 			config.id = msg.Id
 			config.timeout = msg.Timeout
 			config.backup_masters = msg.BackupCommunicationServers
 			threading.Thread(target=lambda: sendStatuses(config)).start()
+
+		elif type(msg) == messages.DivideProblem:
+			# TODO DivideProblem!
+			...
 
 def sendStatuses(config):
 	while True:
