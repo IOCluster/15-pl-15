@@ -1,7 +1,7 @@
 # ./Register.py
 # -*- coding: utf-8 -*-
 # PyXB bindings for NM:2822c36b4c9082ba7843008891500b6fadea2c31
-# Generated 2015-03-14 19:33:49.745291 by PyXB version 1.2.4 using Python 2.7.9.final.0
+# Generated 2015-03-20 11:15:42.261348 by PyXB version 1.2.4 using Python 2.7.9.final.0
 # Namespace http://www.mini.pw.edu.pl/ucc/
 
 from __future__ import unicode_literals
@@ -15,7 +15,7 @@ import sys
 import pyxb.utils.six as _six
 
 # Unique identifier for bindings created at the same time
-_GenerationUID = pyxb.utils.utility.UniqueIdentifier('urn:uuid:a854feee-ca78-11e4-ab34-080027c51aaa')
+_GenerationUID = pyxb.utils.utility.UniqueIdentifier('urn:uuid:10743326-ceea-11e4-a7c3-080027c51aaa')
 
 # Version of PyXB used to generate the bindings
 _PyXBVersion = '1.2.4'
