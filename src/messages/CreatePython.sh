@@ -1,6 +1,6 @@
 #!/bin/bash
 
-DIR=/home/pio/IO2/Project/xml/
+DIR=../../../xml
 NAME=DivideProblem
 pyxbgen -u $DIR/$NAME.xsd -m $NAME --schema-root . --allow-builtin-generation
 NAME=NoOperation
@@ -21,7 +21,8 @@ NAME=SolveRequestResponse
 pyxbgen -u $DIR/$NAME.xsd -m $NAME --schema-root . --allow-builtin-generation
 NAME=Status
 pyxbgen -u $DIR/$NAME.xsd -m $NAME --schema-root . --allow-builtin-generation
-
+NAME=Error
+pyxbgen -u $DIR/$NAME.xsd -m $NAME --schema-root . --allow-builtin-generation
 
 
 
