@@ -1,26 +1,29 @@
 from argparse import Namespace
 import json
 
-#SEPARATOR = b"\x17"
+#SEPARATOR = b"\x17"	# == ctrl+w
 SEPARATOR = b"\n"
 
 class Connection:
 	def __init__(self, socket, timeout=None):
 		self.socket = socket
-		self.buffer = b""
 		if timeout:
 			self.socket.settimeout(timeout)
 
 	def send(self, message):
 		self.socket.send(message + SEPARATOR)
 
+	# Iterate over messages separated by SEPARATOR, break after recv 0 bytes
 	def __iter__(self):
+		buf = b""
 		while True:
-			while SEPARATOR in self.buffer:
-				msg, self.buffer = self.buffer.split(SEPARATOR, 1)
-
-				yield(parse(msg))
-			self.buffer += self.socket.recv(4096)
+			data = self.socket.recv(8192)
+			if not data: break
+			if SEPARATOR in data:
+				yield parse(buf + data[:data.find(SEPARATOR)])
+				buf = data[data.find(SEPARATOR) + 1:]
+			else:
+				buf += data
 
 # TODO Support that XML shit.
 

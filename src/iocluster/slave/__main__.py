@@ -3,6 +3,8 @@ import sys
 import socket
 import time
 import threading
+import signal as os_signal
+from time import strftime
 from iocluster import messages
 
 argfix = {
@@ -20,31 +22,57 @@ args = parser.parse_args(args)
 config = Namespace()
 config.id = None
 config.timeout = None
-config.master = None
+config.master = (args.address, args.port)
 config.backup_masters = []
 
-def handleMessages(config):
-	for msg in config.master:
-		print(str(msg))
+def keepAlive():
+	while True:
+		# Wait keepAlive period
+		time.sleep(config.timeout/2)
 
-		if type(msg) == messages.NoOperation:
-			config.backup_masters = msg.BackupCommunicationServers
+		# Connect to master and ask for status
+		print("{time:s} Send KeepAlive".format(time=strftime("%H:%M:%S")))
+		conn = messages.Connection(socket.create_connection(config.master))
+		connections.append(conn)
+		conn.send(messages.Status(config.id, [])) # TODO threads
+		conn.socket.shutdown(socket.SHUT_WR)
 
-		elif type(msg) == messages.RegisterResponse:
+		# Read response
+		for msg in conn:
+			if type(msg) == messages.NoOperation:
+				print("Response: NoOperation")
+				config.backup_masters = msg.BackupCommunicationServers
+
+			elif type(msg) == messages.DivideProblem:
+				print("Response: DivideProblem")
+				# TODO DivideProblem!
+				pass
+
+def register():
+	print("Try to connect...")
+	conn = messages.Connection(socket.create_connection(config.master))
+	connections.append(conn)
+	print("Send Register message")
+	conn.send(messages.Register("TaskManager" if args.type == "TM" else "ComputationalNode", ["TSP"], 8))
+	conn.socket.shutdown(socket.SHUT_WR)
+	for msg in conn:
+		if type(msg) == messages.RegisterResponse:
+			print("Registered successfully")
 			config.id = msg.Id
 			config.timeout = msg.Timeout
 			config.backup_masters = msg.BackupCommunicationServers
-			threading.Thread(target=lambda: sendStatuses(config)).start()
 
-		elif type(msg) == messages.DivideProblem:
-			# TODO DivideProblem!
-			...
+connections = []
 
-def sendStatuses(config):
-	while True:
-		time.sleep(config.timeout/2)
-		config.master.send(messages.Status(config.id, [])) # TODO threads
+# Close connection on ctrl+c
+def signal_handler(signal, frame):
+    print('Closing connections and exiting...')
+    for conn in connections:
+    	conn.socket.close()
+    sys.exit(0)
 
-config.master = messages.Connection(socket.create_connection((args.address, args.port)))
-config.master.send(messages.Register("TaskManager" if args.type == "TM" else "ComputationalNode", ["TSP"], 8))
-handleMessages(config)
+os_signal.signal(os_signal.SIGINT, signal_handler)
+
+# Run
+register()
+keepAlive()

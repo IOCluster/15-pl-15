@@ -1,11 +1,13 @@
 from argparse import ArgumentParser
-import sys
-import socket
-import threading
 import random
+import sys
+import threading
+import socket
+import signal as os_signal
+from time import strftime
 from iocluster import messages
 from iocluster.master.slave import Slave
-from iocluster.master.signal import Signal
+from iocluster.master.sig import Signal
 
 argfix = {
 	"-port": "--port",
@@ -19,11 +21,9 @@ parser.add_argument('--backup', '-b', action="store_true", help="are we a backup
 parser.add_argument('--timeout', '-t', type=int, default=5, help="component timeout")
 args = parser.parse_args(args)
 
-server = socket.socket(socket.AF_INET6)
-server.bind(("::", args.port))
-server.listen(50)
-
-components = []
+TMs = []
+CNs = []
+BCSs = []
 component_added = Signal()
 tasks = []
 
@@ -55,25 +55,27 @@ def advanceTask(task):
 		task.divider.died.queue(lambda: redivide(task))
 
 def handleConnection(c):
-	id = len(components)
-	components.append(None)
+	print("{time:s} Connection from {server:s}:{port:d}".format(time=strftime("%H:%M:%S"), server=c.socket.getpeername()[0], port=c.socket.getpeername()[1]))
 	try:
+		# Read all messages from client separated by 0x17 until EOC (write stream closed)
 		for msg in c:
-			print(str(msg))
+			print("Received: {:s}".format(str(msg)))
 
 			if type(msg) == messages.Register:
-				if components[id]:
-					continue # Already registered!
-
-				if msg.Type in Slave.Types:
-					components[id] = Slave.Types[msg.Type](id, c, msg.SolvableProblems, msg.ParallelThreads)
+				print("Register: {type:s}".format(type=msg.Type))
+				if msg.Type == "TaskManager":
+					id = len(TMs)
+					TMs.append(Slave.Types[msg.Type](id, c, msg.SolvableProblems, msg.ParallelThreads))
 					c.send(messages.RegisterResponse(id, args.timeout, [])) # TODO backup
-					component_added.notify_all()
+				# if msg.Type in Slave.Types:
+				# 	components[id] = Slave.Types[msg.Type](id, c, msg.SolvableProblems, msg.ParallelThreads)
+				# 	c.send(messages.RegisterResponse(id, args.timeout, [])) # TODO backup
+				# 	component_added.notify_all()
 				elif msg.Type == "CommunicationServer":
 					return # TODO
 
 			elif type(msg) == messages.Status:
-				assert(msg.Id == id)
+				# assert(msg.Id == id)
 				# TODO msg.Threads?
 				c.send(messages.NoOperation([])) # TODO backup
 
@@ -94,15 +96,40 @@ def handleConnection(c):
 					return
 				c.send(messages.Solutions(task.Id, task.ProblemType, task.Data, [dict(Type="Ongoing", ComputationsTime=0)])) # TODO SolveRequest.Data == CommonData?
 
-	except: # eg. timeout or socket closure
+	except Exception as e:
+		print 'Exception occurred:', e
+	# except: # eg. timeout or socket closure
 		# This one is dead.
-		pass
+		# pass
 
-	if components[id]:
-		c = components[id]
-		components[id] = None
-		c.died.notify_all()
+	# Close connection
+	c.socket.close()
+	connections.remove(c)
 
+	# if components[id]:
+	# 	c = components[id]
+	# 	components[id] = None
+	# 	c.died.notify_all()
+
+connections = []
+
+# Close connection on ctrl+c
+def signal_handler(signal, frame):
+    print('Closing connections and exiting...')
+    for conn in connections:
+    	conn.socket.close()
+    sys.exit(0)
+
+os_signal.signal(os_signal.SIGINT, signal_handler)
+
+# Open server socket
+server = socket.socket(socket.AF_INET6)
+server.bind(("::", args.port))
+server.listen(50)
+
+# Main Loop: Listen for incoming connections
 while True:
 	s, addr = server.accept()
-	threading.Thread(target=handleConnection, args=(messages.Connection(s, timeout=args.timeout),)).start()
+	conn = messages.Connection(s, timeout=args.timeout)
+	connections.append(conn)
+	threading.Thread(target=handleConnection, args=(conn,)).start()
