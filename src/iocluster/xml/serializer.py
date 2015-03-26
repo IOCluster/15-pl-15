@@ -10,7 +10,10 @@ def serialize(data, el, ns=None):
 	out = '<' + el.attrib['name'] + (' xmlns="' + ns + '"' if ns else "") + '>'
 
 	if "type" in el.attrib or el[0].tag == xs + "simpleType":
-		out += str(data)
+		if "type" in el.attrib and el.attrib["type"] == "xs:boolean":
+			out += "true" if data else "false"
+		else:
+			out += str(data)
 
 	elif el[0].tag == xs + "complexType":
 
@@ -48,29 +51,3 @@ class Serializer:
 
 	def __call__(self, data):
 		return serialize(data, self.schema[0], self.schema.attrib["targetNamespace"])
-
-s = Serializer("UCC_2015/xml/Status.xsd")
-print(s(dict(Id=12, Threads=[dict(State="Idle"), dict(State="Idle"), dict(State="Busy", HowLong=1244656, ProblemInstanceId=1212, TaskId=123, ProblemType="TSP")])))
-
-"""
-<Status xmlns="http://www.mini.pw.edu.pl/ucc/"
-               xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-               xsi:noNamespaceSchemaLocation="Status.xsd">
-  <Id>12</Id>
-  <Threads>
-    <Thread>
-      <State>Idle</State>
-    </Thread>
-    <Thread>
-      <State>Idle</State>
-    </Thread>
-    <Thread>
-      <State>Busy</State>
-      <HowLong>1244656</HowLong>
-      <ProblemInstanceId>1212</ProblemInstanceId>
-      <TaskId>123</TaskId>
-      <ProblemType>TSP</ProblemType>
-    </Thread>
-  </Threads>
-</Status>
-"""
