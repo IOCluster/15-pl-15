@@ -1,11 +1,12 @@
 from argparse import Namespace
 import json
 
-#SEPARATOR = b"\x17"	# == ctrl+w
-SEPARATOR = b"\n"
+SEPARATOR = b"\x17"	# == ctrl+w
+# SEPARATOR = b"\n"
 
 class Connection:
 	def __init__(self, socket, timeout=None):
+		self.buffer = b""
 		self.socket = socket
 		if timeout:
 			self.socket.settimeout(timeout)
@@ -15,15 +16,16 @@ class Connection:
 
 	# Iterate over messages separated by SEPARATOR, break after recv 0 bytes
 	def __iter__(self):
-		buf = b""
 		while True:
 			data = self.socket.recv(8192)
-			if not data: break
-			if SEPARATOR in data:
-				yield parse(buf + data[:data.find(SEPARATOR)])
-				buf = data[data.find(SEPARATOR) + 1:]
-			else:
-				buf += data
+			if not data:
+				if self.buffer:
+					yield parse(self.buffer)
+				break
+			self.buffer += data
+			while SEPARATOR in self.buffer:
+				yield parse(self.buffer[:self.buffer.find(SEPARATOR)])
+				self.buffer = self.buffer[self.buffer.find(SEPARATOR) + 1:]
 
 # TODO Support that XML shit.
 
@@ -91,7 +93,7 @@ class Solution(Namespace):
 		Namespace.__init__(self, TaskId=TaskId, TimeoutOccured=TimeoutOccured, Type=Type, ComputationsTime=ComputationsTime, Data=Data)
 
 class Solutions(Message):
-	def __init__(self, Id, ProblemType, CommonData, Solutions):
+	def __init__(self, Id, ProblemType, Solutions, CommonData=None):
 		Solutions = [x if isinstance(x, Solution) else Solution(**x) for x in Solutions]
 		Namespace.__init__(self, ProblemType=ProblemType, Id=Id, CommonData=CommonData, Solutions=Solutions)
 Message.Types["Solutions"] = Solutions

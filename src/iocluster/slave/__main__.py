@@ -3,9 +3,11 @@ import sys
 import socket
 import time
 import threading
-import signal as os_signal
+from random import randint
+import signal as signal
 from time import strftime
 from iocluster import messages
+import iocluster.util as Utilities
 
 argfix = {
 	"-address": "--address",
@@ -25,15 +27,24 @@ config.timeout = None
 config.master = (args.address, args.port)
 config.backup_masters = []
 
+connections_manager = Utilities.ConnectionsManager()
+
 def keepAlive():
 	while True:
-		# Wait keepAlive period
-		time.sleep(config.timeout/2)
+		try:
+			# Wait keepAlive period
+			time.sleep(config.timeout/2)
+		except:
+			break
+
+		# Simulate dying
+		#if (randint(0, 10) == 0):
+		#	return
 
 		# Connect to master and ask for status
-		print("{time:s} Send KeepAlive".format(time=strftime("%H:%M:%S")))
+		print("{time:s} Send KeepAlive".format(time=Utilities.current_time_formatted()))
 		conn = messages.Connection(socket.create_connection(config.master))
-		connections.append(conn)
+		connections_manager.add(conn)
 		conn.send(messages.Status(config.id, [])) # TODO threads
 		conn.socket.shutdown(socket.SHUT_WR)
 
@@ -48,13 +59,16 @@ def keepAlive():
 				# TODO DivideProblem!
 				pass
 
+		connections_manager.remove(conn)
+
 def register():
-	print("Try to connect...")
+	print("{time:s} Connecting to ...".format(time=Utilities.current_time_formatted()))
 	conn = messages.Connection(socket.create_connection(config.master))
-	connections.append(conn)
+	connections_manager.add(conn)
 	print("Send Register message")
 	conn.send(messages.Register("TaskManager" if args.type == "TM" else "ComputationalNode", ["TSP"], 8))
 	conn.socket.shutdown(socket.SHUT_WR)
+	
 	for msg in conn:
 		if type(msg) == messages.RegisterResponse:
 			print("Registered successfully")
@@ -62,16 +76,10 @@ def register():
 			config.timeout = msg.Timeout
 			config.backup_masters = msg.BackupCommunicationServers
 
-connections = []
+	connections_manager.remove(conn)
 
 # Close connection on ctrl+c
-def signal_handler(signal, frame):
-    print('Closing connections and exiting...')
-    for conn in connections:
-    	conn.socket.close()
-    sys.exit(0)
-
-os_signal.signal(os_signal.SIGINT, signal_handler)
+signal.signal(signal.SIGINT, lambda: connections_manager.closeAndExit())
 
 # Run
 register()
