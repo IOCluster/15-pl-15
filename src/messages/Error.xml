@@ -1,0 +1,6 @@
+﻿<?xml version="1.0" encoding="utf-8" ?>
+<Error xmlns="http://www.mini.pw.edu.pl/ucc/"
+               xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+               xsi:noNamespaceSchemaLocation="Error.xsd">
+  <ErrorType>UnknownSender</ErrorType>
+</Error>
