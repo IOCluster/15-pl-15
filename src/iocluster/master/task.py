@@ -1,4 +1,22 @@
+import threading
 from iocluster import messages
+
+# All tasks: Problem, Partial Problem, Partial Solution, Solution
+class Tasks:
+	list = []
+	lock = threading.Lock()
+
+	def add(self, msg):
+		self.lock.acquire()
+		try:
+			msg.Id = len(self.list)
+			task = Task(msg)
+			self.list.append(task)
+		finally:
+			self.lock.release()
+		return msg.Id
+
+tasks = Tasks()
 
 class Task:
 	# New -> Look for TM to divide it

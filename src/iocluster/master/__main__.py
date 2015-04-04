@@ -6,9 +6,9 @@ import socket
 import signal
 from time import strftime
 from iocluster import messages
-from iocluster.master.component import Component
-from iocluster.master.task import Task
-from iocluster.util import ConnectionsManager
+from iocluster.master.component import components
+from iocluster.master.task import tasks
+from iocluster.util import connections_manager
 
 argfix = {
 	"-port": "--port",
@@ -21,15 +21,6 @@ parser.add_argument('--port', '-p', type=int, default=2121, help="port to listen
 parser.add_argument('--backup', '-b', action="store_true", help="are we a backup server?")
 parser.add_argument('--timeout', '-t', type=int, default=5, help="component timeout (s)")
 args = parser.parse_args(args)
-
-# All components: CN, TM, BCS
-components = []
-# All tasks: Problem, Partial Problem, Partial Solution, Solution
-tasks = []
-# All relevant messages with info (like nodes' ids) updated
-# messages = []
-
-connections_manager = ConnectionsManager()
 
 # The important
 # information that are synchronized are the existing CN and TM and their current activities and the data of
@@ -46,59 +37,33 @@ connections_manager = ConnectionsManager()
 # queue and update
 # internal information
 
-componentsLock = threading.Lock()
-def addComponent(msg):
-	componentsLock.acquire()
-	try:
-		msg.Id = len(components)
-		component = Component.Types[msg.Type](conn, msg)
-		components.append(component)
-	finally:
-		componentsLock.release()
-	return msg.Id
-
-tasksLock = threading.Lock()
-def addTask(msg):
-	tasksLock.acquire()
-	try:
-		msg.Id = len(tasks)
-		task = Task(msg)
-		tasks.append(task)
-	finally:
-		tasksLock.release()
-	return msg.Id
-
 # Synchronize state with first backup server
 def asyncSynchronize():
 	pass
 
 def messageRegister(conn, msg):
-	if msg.Type in Component.Types:
-		id = addComponent(msg)
-		print("Register: {type:s} (Id: {id:d})".format(type=msg.Type, id=id))
-		response = messages.RegisterResponse(id, args.timeout, [])
-		conn.send(response)
-	elif msg.Type == "CommunicationServer":
-		return # TODO
-
-def messageStatus(conn, msg):
-	assert msg.Id < len(components), "component id not registered"
-	assert not components[msg.Id].dead, "component already dead"
-	# TODO msg.Threads?
-	component = components[msg.Id]
-	component.touch()
-	response = messages.NoOperation([])
+	id = components.add(conn, msg)
+	print("Register: {type:s} (Id: {id:d})".format(type=msg.Type, id=id))
+	response = messages.RegisterResponse(id, args.timeout, [])
 	conn.send(response)
 
+def messageStatus(conn, msg):
+	assert msg.Id < len(components.list), "component id not registered"
+	assert not components.list[msg.Id].dead, "component already dead"
+	component = components.list[msg.Id]
+	component.touch()
+	component.parseStatus(msg)
+	component.sendMessages(conn)
+
 def messageSolveRequest(conn, msg):
-	id = addTask(msg)
+	id = tasks.add(msg)
 	print("-> AddTask :: #{id:d} Type: {type:s} Timeout: {timeout:d}".format(type=msg.ProblemType, timeout=msg.SolvingTimeout, id=id))
 	response = messages.SolveRequestResponse(id)
 	conn.send(response)
 
 def messageSolutionRequest(conn, msg):
-	assert msg.Id < len(tasks), "task id not registered"
-	task = tasks[msg.Id]
+	assert msg.Id < len(tasks.list), "task id not registered"
+	task = tasks.list[msg.Id]
 	response = task.getSolutionRequestMessage()
 	conn.send(response)
 
@@ -125,9 +90,9 @@ def handleConnection(conn):
 	connections_manager.remove(conn)
 
 def removeInactiveComponents():
-	for index, component in enumerate(components):
+	for index, component in enumerate(components.list):
 		# Wait twice the timeout, as nodes are sending state each timeout seconds
-		if not component.isAlive(2 * args.timeout * 1000):
+		if not component.dead and not component.isAlive(2 * args.timeout * 1000):
 			print("Removing inactive component: #{:d} ({:s})".format(component.id, type(component).__name__))
 			# asyncSynchronize()
 

@@ -19,3 +19,5 @@ class ConnectionsManager:
 	    for conn in self.connections:
 	    	conn.socket.close()
 	    sys.exit(0)
+
+connections_manager = ConnectionsManager()
