@@ -7,7 +7,7 @@ import signal
 from time import strftime
 from iocluster import messages
 from iocluster.master.component import components
-from iocluster.master.task import tasks
+from iocluster.master.problem import problems, Problem
 from iocluster.util import connections_manager
 
 argfix = {
@@ -42,8 +42,8 @@ def asyncSynchronize():
 	pass
 
 def messageRegister(conn, msg):
-	id = components.add(conn, msg)
-	print("Register: {type:s} (Id: {id:d})".format(type=msg.Type, id=id))
+	id = components.add(msg)
+	print("-> Register :: #{id:d} Type: {type:s}".format(type=msg.Type, id=id))
 	response = messages.RegisterResponse(id, args.timeout, [])
 	conn.send(response)
 
@@ -51,28 +51,47 @@ def messageStatus(conn, msg):
 	assert msg.Id < len(components.list), "component id not registered"
 	assert not components.list[msg.Id].dead, "component already dead"
 	component = components.list[msg.Id]
+	print("-> Status :: #{id:d} Type: {type:s}".format(type=component.type, id=component.id))
 	component.touch()
 	component.parseStatus(msg)
 	component.sendMessages(conn)
 
 def messageSolveRequest(conn, msg):
-	id = tasks.add(msg)
-	print("-> AddTask :: #{id:d} Type: {type:s} Timeout: {timeout:d}".format(type=msg.ProblemType, timeout=msg.SolvingTimeout, id=id))
+	id = problems.add(msg)
+	print("-> AddProblem :: #{id:d} Type: {type:s} Timeout: {timeout:d}".format(type=msg.ProblemType, timeout=msg.SolvingTimeout, id=id))
 	response = messages.SolveRequestResponse(id)
 	conn.send(response)
 
 def messageSolutionRequest(conn, msg):
-	assert msg.Id < len(tasks.list), "task id not registered"
-	task = tasks.list[msg.Id]
-	response = task.getSolutionRequestMessage()
+	assert msg.Id < len(problems.list), "problem id not registered"
+	problem = problems.list[msg.Id]
+	print("-> SolutionRequest :: #{id:d} Type: {type:s}".format(id=msg.Id, type=problem.getComputationType()))
+	response = problem.getSolutionRequestMessage()
 	conn.send(response)
+
+def messageSolvePartialProblems(conn, msg):
+	assert msg.Id < len(problems.list), "problem id not registered"
+	print("-> SolvePartialProblems :: #{id:d} Type: {type:s} PartialProblems: {count:d}".format(type=msg.ProblemType, id=msg.Id, count=len(msg.PartialProblems)))
+	problem = problems.list[msg.Id]
+	problem.updateWithDivide(msg)
+
+def messageSolutions(conn, msg):
+	problem = problems.list[msg.Id]
+	# Received partial solution from CN
+	if problem.status == Problem.Divided:
+		print("-> Solutions :: #{id:d} Type: {type:s}".format(type=msg.ProblemType, id=msg.Id))
+		for solution in msg.Solutions:
+			print("--- Solution :: #{id:d} Type: {type:s} Time: {time:d} Timeout: {timeout:}".format(type=solution.Type, time=solution.ComputationsTime, id=solution.TaskId, timeout=solution.TimeoutOccured))
+	# Received final merged solution from TM 
+	elif problem.status == Problem.Computed:
+		print("-> Merged Solutions :: #{id:d} Type: {type:s}".format(type=msg.ProblemType, id=msg.Id))
+	problem.updateWithSolutions(msg)
 
 def handleConnection(conn):
 	print("{time:s} Connection from {server:s}:{port:d}".format(time=strftime("%H:%M:%S"), server=conn.socket.getpeername()[0], port=conn.socket.getpeername()[1]))
 	try:
 		# Read all messages from client separated by 0x17 until EOC (write stream closed)
 		for msg in conn:
-			print("+ {:s}".format(str(msg)))
 			if type(msg) == messages.Register:
 				messageRegister(conn, msg)
 			elif type(msg) == messages.Status:
@@ -81,10 +100,16 @@ def handleConnection(conn):
 				messageSolveRequest(conn, msg)
 			elif type(msg) == messages.SolutionRequest:
 				messageSolutionRequest(conn, msg)
+			elif type(msg) == messages.SolvePartialProblems:
+				messageSolvePartialProblems(conn, msg)
+			elif type(msg) == messages.Solutions:
+				messageSolutions(conn, msg)
+			else:
+				print("? {:s}".format(str(msg)))
 	except AssertionError as e:
 		print("Assertion error: {0}".format(e))
-	except Exception as e:
-		print('Exception occurred:', e)
+	# except Exception as e:
+	# 	print('Exception occurred:', e)
 	# Close connection
 	conn.socket.close()
 	connections_manager.remove(conn)

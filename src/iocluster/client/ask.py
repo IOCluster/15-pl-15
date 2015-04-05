@@ -40,16 +40,15 @@ def checkForSolutions():
 		for msg in conn:
 			if type(msg) == messages.Solutions:
 				assert hasattr(msg, 'Solutions') and len(msg.Solutions) > 0, "solutions message invalid"
-				if msg.Solutions[0].Type == "Ongoing":
-					print("Computing...")
-
+				solution = msg.Solutions[0]
+				if solution.Type == "Ongoing":
+					print("-> Computing...")
 				# Timeout occured
-				elif msg.Solutions[0].Type == "Partial":
-					print("Partial received")
+				elif solution.Type == "Partial":
+					print("-> Partial received :: Time: {time:d}, Data: {data:s}".format(time=solution.ComputationsTime, data=solution.Data))
 					return True
-
-				elif msg.Solutions[0].Type == "Final":
-					print("Solution received")
+				elif solution.Type == "Final":
+					print("-> Solution received :: Time: {time:d}, Data: {data:s}".format(time=solution.ComputationsTime, data=solution.Data))
 					return True
 
 		connections_manager.remove(conn)

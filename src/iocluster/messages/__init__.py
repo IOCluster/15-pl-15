@@ -65,8 +65,13 @@ Message.Types["RegisterResponse"] = RegisterResponse
 
 class Status(Message):
 	def __init__(self, Id, Threads):
+		Threads = [x if isinstance(x, Thread) else Thread(**x) for x in Threads]
 		Namespace.__init__(self, Id=Id, Threads=Threads)
 Message.Types["Status"] = Status
+
+class Thread(Message):
+	def __init__(self, State, HowLong=None, ProblemInstanceId=None, TaskId=None, ProblemType=None):
+		Namespace.__init__(self, State=State, HowLong=HowLong, ProblemInstanceId=ProblemInstanceId, TaskId=TaskId, ProblemType=ProblemType)
 
 class NoOperation(Message):
 	def __init__(self, BackupCommunicationServers):
@@ -102,6 +107,16 @@ class DivideProblem(Message):
 	def __init__(self, Id, ProblemType, Data, ComputationalNodes, NodeID):
 		Namespace.__init__(self, ProblemType=ProblemType, Id=Id, Data=Data, ComputationalNodes=ComputationalNodes, NodeID=NodeID)
 Message.Types["DivideProblem"] = DivideProblem
+
+class PartialProblem(Namespace):
+	def __init__(self, TaskId, Data, NodeID):
+		Namespace.__init__(self, TaskId=TaskId, Data=Data, NodeID=NodeID)
+
+class SolvePartialProblems(Message):
+	def __init__(self, Id, ProblemType, CommonData, PartialProblems, SolvingTimeout=None):
+		PartialProblems = [x if isinstance(x, PartialProblem) else PartialProblem(**x) for x in PartialProblems]
+		Namespace.__init__(self, ProblemType=ProblemType, Id=Id, CommonData=CommonData, SolvingTimeout=SolvingTimeout, PartialProblems=PartialProblems)
+Message.Types["SolvePartialProblems"] = SolvePartialProblems
 
 def parse(message):
 	message = message.decode("utf-8")
