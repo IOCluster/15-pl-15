@@ -25,7 +25,7 @@ class Components:
 		return [component for component in self.active() if component.type == Component.ComputationalNode]
 
 	def getThreadCount(self):
-		return sum(component.threads for component in self.ComputationalNodes())
+		return sum(len(component.threads.list) for component in self.ComputationalNodes())
 
 components = Components()
 
@@ -40,6 +40,8 @@ class Component:
 		self.id = msg.Id
 		self.lastAlive = current_time_ms()
 		self.registerMessage = msg
+		self.solvableProblems = msg.SolvableProblems
+		self.threads = ComponentThreads(msg.ParallelThreads)
 
 	# timeout in ms
 	def isAlive(self, timeout):
@@ -53,11 +55,9 @@ class TaskManager(Component):
 	def __init__(self, msg):
 		Component.__init__(self, msg)
 		self.type = Component.TaskManager
-		self.problems = msg.SolvableProblems
-		self.threads = msg.ParallelThreads
 
 	def parseStatus(self, msg):
-		pass
+		self.threads.updateWithState(msg)
 
 	def chooseProblem(self):
 		# Find suitable problem and try to assign component
@@ -92,15 +92,17 @@ class TaskManager(Component):
 
 	def sendMessages(self, conn):
 		self.sendNoOperationMessage(conn)
-
-		assignedProblem = self.chooseProblem()
-		print("TM assigned: #{:d}".format(assignedProblem.Id) if assignedProblem != None else "TM assigned: None")
-		if assignedProblem != None:
+		# Send tasks
+		for i in range(self.threads.getAvailableCount()):
+			assignedProblem = self.chooseProblem()
+			if assignedProblem == None:
+				if i == 0: print("TM assigned: None")
+				break
+			print("TM assigned: #{:d}".format(assignedProblem.Id))
 			if assignedProblem.status == Problem.New:
 				self.sendDivideMessage(conn, assignedProblem)
 			elif assignedProblem.status == Problem.Computed:
 				self.sendSolutionsMessage(conn, assignedProblem)
-		
 
 Component.Types["TaskManager"] = TaskManager
 
@@ -108,42 +110,53 @@ class ComputationalNode(Component):
 	def __init__(self, msg):
 		Component.__init__(self, msg)
 		self.type = Component.ComputationalNode
-		self.problems = msg.SolvableProblems
-		self.threads = msg.ParallelThreads
-
-	def solve(self, task):
-		pass
 
 	def parseStatus(self, msg):
-		pass
+		self.threads.updateWithState(msg)
 
-	def sendMessages(self, conn):
+	def chooseProblem(self):
 		# Find suitable task and try to assign component
 		available = [task for problem in problems.unassignedForComputation() for task in problem.tasks.unassigned()]
 		print("CN available: {:s}".format(str(["#{:d}".format(x.Id) for x in available])))
-		assignedTask = None
 		for task in available:
 			if task.assignToComponent(self.id):
-				assignedTask = task
-				break
+				return task
 
-		print("CN assigned: #{:d}".format(assignedTask.Id) if assignedTask != None else "CN assigned: None")
-
-		# Send NoOperation with backup servers list
+	def sendNoOperationMessage(self, conn):
 		response = messages.NoOperation([])
 		conn.send(response)
 
-		# Send PartialProblem to compute if pending
-		if assignedTask != None:
+	def sendSolvePartialProblemsMessage(self, conn, assignedTasks):
+		# Find different problems
+		problems = []
+		for assignedTask in assignedTasks:
+			problem = assignedTask.problem
+			if not problem in problems: problems.append(problem)
+		# Send message for each problem
+		for problem in problems:
 			partialProblems = []
-			partialProblem = {
-				"TaskId": assignedTask.Id,
-				"Data": assignedTask.ProblemData,
-				"NodeID": assignedTask.NodeID
-			}
-			partialProblems.append(partialProblem)
-			response = messages.SolvePartialProblems(assignedTask.problem.Id, assignedTask.problem.ProblemType, assignedTask.problem.CommonData, partialProblems)
+			for assignedTask in assignedTasks:
+				if assignedTask.problem == problem:
+					partialProblems.append({
+						"TaskId": assignedTask.Id,
+						"Data": assignedTask.ProblemData,
+						"NodeID": assignedTask.NodeID
+					})
+			response = messages.SolvePartialProblems(problem.Id, problem.ProblemType, problem.CommonData, partialProblems)
 			conn.send(response)
+
+	def sendMessages(self, conn):
+		self.sendNoOperationMessage(conn)
+		# Send PartialProblem to compute if pending
+		assignedTasks = []
+		for i in range(self.threads.getAvailableCount()):
+			assignedTask = self.chooseProblem()
+			if assignedTask == None:
+				if i == 0: print("CN assigned: None")
+				break
+			print("CN assigned: #{:d}".format(assignedTask.Id))
+			assignedTasks.append(assignedTask)
+		self.sendSolvePartialProblemsMessage(conn, assignedTasks)
 
 Component.Types["ComputationalNode"] = ComputationalNode
 
@@ -163,3 +176,35 @@ class CommunicationServer(Component):
 		conn.send(response)
 
 Component.Types["CommunicationServer"] = CommunicationServer
+
+class ComponentThreads:
+	def __init__(self, count):
+		self.list = []
+		for i in range(count):
+			thread = ComponentThread()
+			self.list.append(thread)
+
+	def updateWithState(self, msg):
+		newList = []
+		for threadMsg in msg.Threads:
+			thread = ComponentThread(threadMsg)
+			newList.append(thread)
+		self.list = newList
+
+	def getAvailableCount(self):
+		return sum(1 for thread in self.list if thread.State == "Idle")
+
+class ComponentThread:
+	def __init__(self, msg=None):
+		if msg == None:
+			self.State = "Idle"
+			self.HowLong = None
+			self.ProblemInstanceId = None
+			self.TaskId = None
+			self.ProblemType = None
+		else:
+			self.State = msg.State
+			self.HowLong = msg.HowLong if msg.HowLong else None
+			self.ProblemInstanceId = msg.ProblemInstanceId if msg.ProblemInstanceId else None
+			self.TaskId = msg.TaskId if msg.TaskId else None
+			self.ProblemType = msg.ProblemType if msg.ProblemType else None

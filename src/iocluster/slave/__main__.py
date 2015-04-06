@@ -25,7 +25,7 @@ args = parser.parse_args(args)
 config = Namespace()
 config.id = None
 config.timeout = None
-config.threads = 8
+config.threads = 2
 config.problems = ["TSP"]
 config.master = (args.address, args.port)
 config.backup_masters = []
@@ -54,16 +54,21 @@ class PendingMessages:
 
 pending_messages = PendingMessages()
 
-current_task = None
-current_task_started = 0
+class OpThread:
+	def __init__(self, msg, assignedId):
+		self.started = current_time_ms()
+		self.message = msg
+		self.assignedId = assignedId
+
+threads = []
 
 def messageNoOperation(msg):
 	print("Response: NoOperation")
 	# config.backup_masters = msg.BackupCommunicationServers
 
 # TODO MergeSolutions
-def mergeSolutions(msg):
-	global current_task
+def mergeSolutions(thread):
+	msg = thread.message
 	problemType = msg.ProblemType
 	problemId = msg.Id
 	commonData = msg.CommonData
@@ -80,23 +85,22 @@ def mergeSolutions(msg):
 	solutions = [{
 		"TimeoutOccured": False,
 		"Type": "Final", # Partial
-		"ComputationsTime": 0,
+		"ComputationsTime": current_time_ms() - thread.started,
 		"Data": "mergedData"
 	}]
 	message = messages.Solutions(msg.Id, msg.ProblemType, solutions)
 	pending_messages.add(message)
-	current_task = None
+	threads.remove(thread)
 
 def messageSolutions(msg):
 	print("Response: MergeSolution")
-	global current_task, current_task_started
-	current_task = msg
-	current_task_started = current_time_ms()
-	threading.Thread(target=mergeSolutions, args=(msg,)).start()
+	thread = OpThread(msg, msg.Id)
+	threads.append(thread)
+	threading.Thread(target=mergeSolutions, args=(thread,)).start()
 
 # TODO DivideProblem!
-def divideProblem(msg):
-	global current_task
+def divideProblem(thread):
+	msg = thread.message
 	problemType = msg.ProblemType
 	problemId = msg.Id
 	problemData = msg.Data
@@ -108,30 +112,29 @@ def divideProblem(msg):
 		pass
 	commonData = "data"
 	partialProblems = []
-	partialProblems.append({
-		"TaskId": 0,
-		"Data": "data_sub",
-		"NodeID": config.id
-	})
+	for i in range(4):
+		partialProblems.append({
+			"TaskId": i,
+			"Data": "data_sub",
+			"NodeID": config.id
+		})
 	message = messages.SolvePartialProblems(msg.Id, msg.ProblemType, commonData, partialProblems)
 	pending_messages.add(message)
-	current_task = None
+	threads.remove(thread)
 
 def messageDivideProblem(msg):
 	print("Response: DivideProblem")
-	global current_task, current_task_started
-	current_task = msg
-	current_task_started = current_time_ms()
-	threading.Thread(target=divideProblem, args=(msg,)).start()
+	thread = OpThread(msg, msg.Id)
+	threads.append(thread)
+	threading.Thread(target=divideProblem, args=(thread,)).start()
 
-def solvePartialProblem(msg):
-	global current_task
+def solvePartialProblem(thread):
+	msg = thread.message
 	problemType = msg.ProblemType
 	problemId = msg.Id
 	commonData = msg.CommonData
 	solvingTimeout = msg.SolvingTimeout
-	# for partialProblem in msg.PartialProblems:
-	partialProblem = msg.PartialProblems[0]
+	partialProblem = [item for item in msg.PartialProblems if item.TaskId == thread.assignedId][0]
 	taskId = partialProblem.TaskId
 	data = partialProblem.Data
 	tmNodeId = partialProblem.NodeID
@@ -140,35 +143,37 @@ def solvePartialProblem(msg):
 	except:
 		pass
 	solutions = [] # Type=Partial
-	solution = messages.Solution(Type="Final", ComputationsTime=(current_time_ms() - current_task_started), TimeoutOccured=False, TaskId=taskId, Data="solution")
+	solution = messages.Solution(Type="Final", ComputationsTime=(current_time_ms() - thread.started), TimeoutOccured=False, TaskId=taskId, Data="solution")
 	solutions.append(solution)
 	message = messages.Solutions(problemId, msg.ProblemType, solutions, msg.CommonData)
 	pending_messages.add(message)
-	current_task = None
+	threads.remove(thread)
 
 def messageSolvePartialProblems(msg):
 	print("Response: SolvePartialProblems")
-	global current_task, current_task_started
-	current_task = msg
-	current_task_started = current_time_ms()
-	threading.Thread(target=solvePartialProblem, args=(msg,)).start()
+	for task in msg.PartialProblems:
+		thread = OpThread(msg, task.TaskId)
+		threads.append(thread)
+		threading.Thread(target=solvePartialProblem, args=(thread,)).start()
 
-def getStatusMessage():
-	threads = []
-	# for i in range(config.threads):
-	thread = {}
-	if current_task == None:
-		thread["State"] = "Idle"
-	else:
-		thread["State"] = "Busy"
-		thread["ProblemType"] = current_task.ProblemType
-		thread["HowLong"] = current_time_ms() - current_task_started
-		thread["ProblemInstanceId"] = current_task.Id
+def sendStatusMessage(conn):
+	msgThreads = []
+	for thread in threads:
+		msgThread = {
+			"State": "Busy",
+			"ProblemType": thread.message.ProblemType,
+			"HowLong": current_time_ms() - thread.started,
+			"ProblemInstanceId": thread.message.Id
+		}
 		if not args.type == "TM":
-			thread["TaskId"] = 0 # TODO
-	threads.append(thread)
-	msg = messages.Status(config.id, threads) # TODO threads
-	return msg
+			msgThread["TaskId"] = thread.assignedId
+		msgThreads.append(msgThread)
+	for i in range(config.threads - len(threads)):
+		msgThreads.append({
+			"State": "Idle"
+		})	
+	msg = messages.Status(config.id, msgThreads)
+	conn.send(msg)
 
 def keepAlive():
 	while True:
@@ -186,8 +191,7 @@ def keepAlive():
 		print("{time:s} Send KeepAlive".format(time=Utilities.current_time_formatted()))
 		conn = messages.Connection(socket.create_connection(config.master))
 		connections_manager.add(conn)
-		request = getStatusMessage()
-		conn.send(request)
+		sendStatusMessage(conn)
 		for msg in pending_messages.getAll():
 			print("Sending result: {:s}".format(str(msg)))
 			conn.send(msg)
