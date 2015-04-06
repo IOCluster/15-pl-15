@@ -113,6 +113,8 @@ def removeInactiveComponents():
 	for index, component in enumerate(components.list):
 		# Wait twice the timeout, as nodes are sending state each timeout seconds
 		if not component.dead and not component.isAlive(2 * args.timeout * 1000):
+			# Release all problems or tasks assigned to that component
+			problems.release(component.id)
 			print("Removing inactive component: #{:d} ({:s})".format(component.id, type(component).__name__))
 			# asyncSynchronize()
 

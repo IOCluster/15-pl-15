@@ -1,7 +1,6 @@
 import threading
 from iocluster import messages
 
-# All problems: Problem, Partial Problem, Partial Solution, Solution
 class Problems:
 	list = []
 	lock = threading.Lock()
@@ -36,6 +35,12 @@ class Problems:
 
 	def finished(self):
 		return [problem for problem in self.list if problem.status == Problem.Done]
+
+	def release(self, componentId):
+		for problem in self.list:
+			if problem.componentId == componentId: problem.componentId = None
+			for task in problem.tasks.list:
+				if task.componentId == componentId: task.componentId = None
 
 problems = Problems()
 
@@ -80,7 +85,7 @@ class Problem:
 		self.CommonData = msg.CommonData
 		self.status = Problem.Divided
 		self.componentId = None
-		print("* Problem #{:d} -> Divided / {:d} tasks".format(self.Id, len(self.tasks.list)))
+		print("* Problem #{:d} -> Divided into {:d} tasks".format(self.Id, len(self.tasks.list)))
 
 	def updateWithSolutions(self, msg):
 		# Partial solutions
