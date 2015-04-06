@@ -29,13 +29,8 @@ args = parser.parse_args(args)
 # each backup server needs to store only one set of data to be synchronized. The current information is
 # sent to the backup CS when it registers with the CS of a higher level and is updated after each
 
-# [Register or data message
-# message
-# Received || Inactive component removed
-# => Add information to
-# synchronization
-# queue and update
-# internal information
+# [Register or data message message Received || Inactive component removed
+# => Add information to synchronization queue and update internal information
 
 # Synchronize state with first backup server
 def asyncSynchronize():

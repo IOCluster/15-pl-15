@@ -72,12 +72,16 @@ def mergeSolutions(thread):
 	problemType = msg.ProblemType
 	problemId = msg.Id
 	commonData = msg.CommonData
+	value = 0
+	sumTime = 0
 	for solution in msg.Solutions:
 		taskId = solution.TaskId
 		timeoutOccured = solution.TimeoutOccured
 		solutionType = solution.Type
 		computationsTime = solution.ComputationsTime
 		solutionData = solution.Data
+		value += int(solutionData)
+		sumTime += int(solution.ComputationsTime)
 	try:
 		time.sleep(3)
 	except:
@@ -85,8 +89,8 @@ def mergeSolutions(thread):
 	solutions = [{
 		"TimeoutOccured": False,
 		"Type": "Final", # Partial
-		"ComputationsTime": current_time_ms() - thread.started,
-		"Data": "mergedData"
+		"ComputationsTime": current_time_ms() - thread.started + sumTime,
+		"Data": str(value)
 	}]
 	message = messages.Solutions(msg.Id, msg.ProblemType, solutions)
 	pending_messages.add(message)
@@ -110,12 +114,12 @@ def divideProblem(thread):
 		time.sleep(3)
 	except:
 		pass
-	commonData = "data"
+	commonData = str(3)
 	partialProblems = []
-	for i in range(4):
+	for i in range(6):
 		partialProblems.append({
 			"TaskId": i,
-			"Data": "data_sub",
+			"Data": str(i),
 			"NodeID": config.id
 		})
 	message = messages.SolvePartialProblems(msg.Id, msg.ProblemType, commonData, partialProblems)
@@ -136,14 +140,14 @@ def solvePartialProblem(thread):
 	solvingTimeout = msg.SolvingTimeout
 	partialProblem = [item for item in msg.PartialProblems if item.TaskId == thread.assignedId][0]
 	taskId = partialProblem.TaskId
-	data = partialProblem.Data
+	data = int(partialProblem.Data) * int(commonData)
 	tmNodeId = partialProblem.NodeID
 	try:
 		time.sleep(3)
 	except:
 		pass
 	solutions = [] # Type=Partial
-	solution = messages.Solution(Type="Final", ComputationsTime=(current_time_ms() - thread.started), TimeoutOccured=False, TaskId=taskId, Data="solution")
+	solution = messages.Solution(Type="Final", ComputationsTime=(current_time_ms() - thread.started), TimeoutOccured=False, TaskId=taskId, Data=data)
 	solutions.append(solution)
 	message = messages.Solutions(problemId, msg.ProblemType, solutions, msg.CommonData)
 	pending_messages.add(message)

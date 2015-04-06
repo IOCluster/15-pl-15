@@ -80,19 +80,18 @@ class Problem:
 		self.CommonData = msg.CommonData
 		self.status = Problem.Divided
 		self.componentId = None
-		print("Problem #{:d} -> Divided".format(self.Id))
+		print("* Problem #{:d} -> Divided / {:d} tasks".format(self.Id, len(self.tasks.list)))
 
 	def updateWithSolutions(self, msg):
 		# Partial solutions
 		if self.status == Problem.Divided:
 			for solution in msg.Solutions:
 				task = self.tasks.list[solution.TaskId]
-				print("Problem #{:d} -> Tasks: {:s}".format(self.Id, str(self.tasks)))
 				task.updateWithSolution(solution)
-			print("Problem #{:d} -> Computed? {:s}".format(self.Id, str(self.tasks.pending())))
+			print("* Problem #{:d} -> Computed {:d}/{:d}".format(self.Id, len(self.tasks.list) - len(self.tasks.pending()), len(self.tasks.list)))
 			if not self.tasks.pending():
 				self.status = Problem.Computed
-				print("Problem #{:d} -> Computed".format(self.Id))
+				print("* Problem #{:d} -> Computed All".format(self.Id))
 		# Merged final solution
 		elif self.status == Problem.Computed:
 			solution = msg.Solutions[0]
@@ -101,7 +100,7 @@ class Problem:
 			self.SolutionType = solution.Type
 			self.TimeoutOccured = solution.TimeoutOccured
 			self.status = Problem.Done
-			print("Problem #{:d} -> Done".format(self.Id))
+			print("* Problem #{:d} -> Done".format(self.Id))
 
 	def getComputationType(self):
 		if self.status == Problem.Done:
@@ -169,10 +168,8 @@ class Task: # AKA PartialProblem
 		self.status = Task.New
 		self.componentId = None
 		self.lock = threading.Lock()
-		print("Task Add: #{:d} Problem #{:d}".format(self.Id, self.problem.Id))
 
 	def assignToComponent(self, id):
-		print("Task Assign: #{:d} Problem #{:d} Component #{:d}".format(self.Id, self.problem.Id, id))
 		self.lock.acquire()
 		try:
 			if self.componentId == None:
@@ -183,7 +180,6 @@ class Task: # AKA PartialProblem
 			self.lock.release()
 
 	def setComputed(self):
-		print("Task SetComputed: #{:d} Problem #{:d}".format(self.Id, self.problem.Id))
 		self.lock.acquire()
 		try:
 			self.status = Task.Computed
@@ -192,7 +188,6 @@ class Task: # AKA PartialProblem
 			self.lock.release()
 
 	def updateWithSolution(self, msg):
-		print("Task UpdateWithSolution: #{:d} ProblemId: #{:d}".format(self.Id, self.problem.Id))
 		self.TimeoutOccured = msg.TimeoutOccured
 		self.SolutionType = msg.Type
 		self.ComputationsTime = msg.ComputationsTime
