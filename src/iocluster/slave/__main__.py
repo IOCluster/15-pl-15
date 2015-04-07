@@ -27,8 +27,8 @@ config.id = None
 config.timeout = None
 config.threads = 2
 config.problems = ["TSP"]
-config.master = (args.address, args.port)
-config.backup_masters = []
+config.master = { "address": args.address, "port": args.port }
+config.backups = []
 
 connections_manager = Utilities.ConnectionsManager()
 
@@ -64,7 +64,7 @@ threads = []
 
 def messageNoOperation(msg):
 	print("Response: NoOperation")
-	# config.backup_masters = msg.BackupCommunicationServers
+	config.backups = msg.BackupCommunicationServers
 
 # TODO MergeSolutions
 def mergeSolutions(thread):
@@ -180,6 +180,7 @@ def sendStatusMessage(conn):
 	conn.send(msg)
 
 def keepAlive():
+	server = config.master
 	while True:
 		try:
 			# Wait keepAlive period
@@ -191,38 +192,53 @@ def keepAlive():
 		#if (randint(0, 10) == 0):
 		#	return
 
-		# Connect to master and ask for status
-		print("{time:s} Send KeepAlive".format(time=Utilities.current_time_formatted()))
-		conn = messages.Connection(socket.create_connection(config.master))
-		connections_manager.add(conn)
-		sendStatusMessage(conn)
-		for msg in pending_messages.getAll():
-			print("Sending result: {:s}".format(str(msg)))
-			conn.send(msg)
-		conn.socket.shutdown(socket.SHUT_WR)
+		try:
+			# Connect to master and ask for status
+			print("{time:s} Send KeepAlive".format(time=Utilities.current_time_formatted()))
+			conn = messages.Connection(Utilities.connect((server["address"], server["port"])))
+			connections_manager.add(conn)
+			sendStatusMessage(conn)
+			for msg in pending_messages.getAll():
+				print("Sending result: {:s}".format(str(msg)))
+				conn.send(msg)
+			conn.socket.shutdown(socket.SHUT_WR)
 
-		# Read response
-		for msg in conn:
-			# TM, CN: Backup servers info
-			if type(msg) == messages.NoOperation:
-				messageNoOperation(msg)
-			# TM: Divide problem
-			elif type(msg) == messages.DivideProblem:
-				messageDivideProblem(msg)
-			# CN: Compute partial problems solutions
-			elif type(msg) == messages.SolvePartialProblems:
-				messageSolvePartialProblems(msg)
-			# TM: Merge partial solutions
-			elif type(msg) == messages.Solutions:
-				messageSolutions(msg)
+			# Read response
+			for msg in conn:
+				# TM, CN: Backup servers info
+				if type(msg) == messages.NoOperation:
+					messageNoOperation(msg)
+				# TM: Divide problem
+				elif type(msg) == messages.DivideProblem:
+					messageDivideProblem(msg)
+				# CN: Compute partial problems solutions
+				elif type(msg) == messages.SolvePartialProblems:
+					messageSolvePartialProblems(msg)
+				# TM: Merge partial solutions
+				elif type(msg) == messages.Solutions:
+					messageSolutions(msg)
+				else:
+					print("? {:s}".format(str(msg)))
+
+			conn.socket.close()
+			connections_manager.remove(conn)
+
+		except OSError as msg:
+			print("KeepAlive connection error: {:s}".format(str(msg)))
+			if config.backups:
+				index = config.backups.index(server) if server in config.backups else -1
+				server = config.backups[index + 1] if len(config.backups) > index + 1 else None
+				if server == None:
+					print("No further backup servers available, exiting...")
+					break
+				print("Backup list: ", config.backups)
+				print("Connecting to next backup: {:s}:{:d}".format(server["address"], server["port"]))
 			else:
-				print("? {:s}".format(str(msg)))
-
-		connections_manager.remove(conn)
+				break
 
 def register():
 	print("{time:s} Connecting to ...".format(time=Utilities.current_time_formatted()))
-	conn = messages.Connection(socket.create_connection(config.master))
+	conn = messages.Connection(socket.create_connection((config.master["address"], config.master["port"])))
 	connections_manager.add(conn)
 	print("Send Register message")
 	request = messages.Register("TaskManager" if args.type == "TM" else "ComputationalNode", config.problems, config.threads)
@@ -234,7 +250,7 @@ def register():
 			print("Registered successfully")
 			config.id = msg.Id
 			config.timeout = msg.Timeout
-			config.backup_masters = msg.BackupCommunicationServers
+			config.backups = msg.BackupCommunicationServers
 
 	connections_manager.remove(conn)
 

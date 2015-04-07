@@ -111,6 +111,10 @@ def messageSolveRequest(conn, msg):
 	response = messages.SolveRequestResponse(id)
 	conn.send(response)
 
+	backup_msg = copy.deepcopy(msg)
+	backup_msg.Id = id
+	backup_servers.backupQueueAppend(backup_msg)
+
 def messageSolutionRequest(conn, msg):
 	assert msg.Id < len(problems.list), "problem id not registered"
 	problem = problems.list[msg.Id]
@@ -124,6 +128,9 @@ def messageSolvePartialProblems(conn, msg):
 	problem = problems.list[msg.Id]
 	problem.updateWithDivide(msg)
 
+	backup_msg = copy.deepcopy(msg)
+	backup_servers.backupQueueAppend(backup_msg)
+
 def messageSolutions(conn, msg):
 	problem = problems.list[msg.Id]
 	# Received partial solution from CN
@@ -135,6 +142,9 @@ def messageSolutions(conn, msg):
 	elif problem.status == Problem.Computed:
 		print("-> Merged Solutions :: #{id:d} Type: {type:s}".format(type=msg.ProblemType, id=msg.Id))
 	problem.updateWithSolutions(msg)
+
+	backup_msg = copy.deepcopy(msg)
+	backup_servers.backupQueueAppend(backup_msg)
 
 def parseMessages(conn):
 	# Read all messages from client separated by 0x17 until EOC (write stream closed)
@@ -185,11 +195,7 @@ def removeInactiveBackup():
 
 def removeInactiveComponents():
 	removeInactiveBackup()
-	if config.is_backup:
-		# Update all components state, else when assume main cs role all would be thought dead
-		for component in components.active():
-			component.touch()
-		return
+	if config.is_backup: return
 	for component in components.active():
 		# Wait twice the timeout, as nodes are sending state each timeout seconds
 		# Don't check CSs, as their state is updated only for the parent in backups list
@@ -234,30 +240,33 @@ def runServer():
 # Backup server functions
 
 def parseMessageBCS(msg):
+	# Forward messages
+	if type(msg) == messages.Register: backup_servers.backupQueueAppend(copy.deepcopy(msg))
+	else: backup_servers.registerQueueAppend(copy.deepcopy(msg))
+	# Parse
 	if type(msg) == messages.Register:
 		if not msg.Deregister:
 			print("% -> Register component #{:d} - {:s}".format(msg.Id, msg.Type))
+			components.add(msg)
 		else:
 			print("% -> Deregister component #{:d} - {:s}".format(msg.Id, msg.Type))
-		# components.add(msg)
+			component = components.get(msg.Id)
+			component.dead = True
+			problems.release(component.id)
 	elif type(msg) == messages.SolveRequest:
 		print("% -> SolveRequest")
-		# problems.add(msg)
-		pass
+		problems.add(msg)
 	elif type(msg) == messages.SolvePartialProblems:
 		print("% -> SolvePartialProblems")
-		# problem = problems.list[msg.Id]
-		# problem.updateWithDivide(msg)
-		pass
+		problem = problems.list[msg.Id]
+		problem.updateWithDivide(msg)
 	elif type(msg) == messages.Solutions:
 		print("% -> Solutions")
-		# problem = problems.list[msg.Id]
-		# problem.updateWithSolutions(msg)
-		pass
+		problem = problems.list[msg.Id]
+		problem.updateWithSolutions(msg)
 	elif type(msg) == messages.NoOperation:
 		print("% -> NoOperation")
 		# update backup server list
-		pass
 	else:
 		print("% ? {:s}".format(str(msg)))
 
@@ -290,6 +299,9 @@ def keepAlive():
 		except OSError as msg:
 			print("KeepAlive connection error: {:s}".format(str(msg)))
 			print("Assuming main communication server role")
+			# Refresh components timeout, else when assume main cs role all would be thought dead
+			for component in components.active():
+				component.touch()
 			config.is_backup = False
 			break
 

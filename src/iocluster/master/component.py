@@ -285,5 +285,7 @@ class CommunicationServer(Component):
 		conn.send(response)
 		for registerMsg in backup_servers.getRegisterMessages():
 			conn.send(registerMsg)
+		for backupMsg in backup_servers.getBackupMessages():
+			conn.send(backupMsg)
 
 Component.Types["CommunicationServer"] = CommunicationServer
