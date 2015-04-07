@@ -8,21 +8,36 @@ class Components:
 	list = []
 	lock = threading.Lock()
 
-	def add(self, msg):
+	def add(self, msg, args=()):
 		self.lock.acquire()
 		try:
-			msg.Id = len(self.list)
-			component = Component.Types[msg.Type](msg)
+			# WARNING! Working only until the following occurs:
+			# C -> CS, CS dies, C -> BCS // without BCS -> CS to synchronize state
+			# C has id which is not registered with BCS, but connects to it impersonating other component
+			# Random ids without collision, in a dictionary, would be a better approach
+			# But specification requires unsigned long...
+			msg.Id = len(self.list) if not msg.Id else msg.Id
+			component = Component.Types[msg.Type](msg, *args)
 			self.list.append(component)
 		finally:
 			self.lock.release()
 		return msg.Id
+
+	def get(self, id):
+		component = [component for component in self.list if component.id == id]
+		return component[0] if component else None
 
 	def active(self):
 		return [component for component in self.list if not component.dead]
 
 	def ComputationalNodes(self):
 		return [component for component in self.active() if component.type == Component.ComputationalNode]
+
+	def BackupServers(self):
+		return [component for component in self.active() if component.type == Component.CommunicationServer]
+
+	def getBackupServersList(self):
+		return [{ "address": component.address, "port": component.port } for component in self.BackupServers()]
 
 	def getThreadCount(self):
 		return sum(len(component.threads.list) for component in self.ComputationalNodes())
@@ -35,13 +50,11 @@ class Component:
 	ComputationalNode = "ComputationalNode"
 	CommunicationServer = "CommunicationServer"
 
-	def __init__(self, msg):
+	def __init__(self, msg, address=None, port=None):
 		self.dead = False
 		self.id = msg.Id
 		self.lastAlive = current_time_ms()
 		self.registerMessage = msg
-		self.solvableProblems = msg.SolvableProblems
-		self.threads = ComponentThreads(msg.ParallelThreads)
 
 	# timeout in ms
 	def isAlive(self, timeout):
@@ -52,9 +65,11 @@ class Component:
 		self.lastAlive = current_time_ms()
 
 class TaskManager(Component):
-	def __init__(self, msg):
+	def __init__(self, msg, address=None, port=None):
 		Component.__init__(self, msg)
 		self.type = Component.TaskManager
+		self.solvableProblems = msg.SolvableProblems
+		self.threads = ComponentThreads(msg.ParallelThreads)
 
 	def parseStatus(self, msg):
 		self.threads.updateWithState(msg)
@@ -70,7 +85,7 @@ class TaskManager(Component):
 		return None
 
 	def sendNoOperationMessage(self, conn):
-		response = messages.NoOperation([])
+		response = messages.NoOperation(components.getBackupServersList())
 		conn.send(response)
 
 	def sendDivideMessage(self, conn, problem):
@@ -107,9 +122,11 @@ class TaskManager(Component):
 Component.Types["TaskManager"] = TaskManager
 
 class ComputationalNode(Component):
-	def __init__(self, msg):
+	def __init__(self, msg, address=None, port=None):
 		Component.__init__(self, msg)
 		self.type = Component.ComputationalNode
+		self.solvableProblems = msg.SolvableProblems
+		self.threads = ComponentThreads(msg.ParallelThreads)
 
 	def parseStatus(self, msg):
 		self.threads.updateWithState(msg)
@@ -123,7 +140,7 @@ class ComputationalNode(Component):
 				return task
 
 	def sendNoOperationMessage(self, conn):
-		response = messages.NoOperation([])
+		response = messages.NoOperation(components.getBackupServersList())
 		conn.send(response)
 
 	def sendSolvePartialProblemsMessage(self, conn, assignedTasks):
@@ -160,22 +177,7 @@ class ComputationalNode(Component):
 
 Component.Types["ComputationalNode"] = ComputationalNode
 
-class CommunicationServer(Component):
-	def __init__(self, msg):
-		Component.__init__(self, msg)
-		self.type = Component.CommunicationServer
-
-	def synchronize(self):
-		pass
-
-	def parseStatus(self, msg):
-		pass
-
-	def sendMessages(self, conn):
-		response = messages.NoOperation([])
-		conn.send(response)
-
-Component.Types["CommunicationServer"] = CommunicationServer
+# --- Component Threads --- #
 
 class ComponentThreads:
 	def __init__(self, count):
@@ -208,3 +210,80 @@ class ComponentThread:
 			self.ProblemInstanceId = msg.ProblemInstanceId if msg.ProblemInstanceId else None
 			self.TaskId = msg.TaskId if msg.TaskId else None
 			self.ProblemType = msg.ProblemType if msg.ProblemType else None
+
+# --- Backup Servers --- #
+
+class BackupServers:
+	list = []
+	registerQueue = []
+	backupQueue = []
+	parentQueue = []
+	lock = threading.Lock()
+
+	def backupQueueAppend(self, msg):
+		self.lock.acquire()
+		try:
+			self.backupQueue.append(msg)
+		finally:
+			self.lock.release()
+
+	def getBackupMessages(self):
+		self.lock.acquire()
+		try:
+			msgList = list(self.backupQueue)
+			self.backupQueue = []
+			return msgList
+		finally:
+			self.lock.release()
+
+	def registerQueueAppend(self, msg):
+		self.lock.acquire()
+		try:
+			self.registerQueue.append(msg)
+		finally:
+			self.lock.release()
+
+	def getRegisterMessages(self):
+		self.lock.acquire()
+		try:
+			msgList = list(self.registerQueue)
+			self.registerQueue = []
+			return msgList
+		finally:
+			self.lock.release()
+
+	def parentQueueAppend(self, msg):
+		self.lock.acquire()
+		try:
+			self.parentQueue.append(msg)
+		finally:
+			self.lock.release()
+
+	def getParentMessages(self):
+		self.lock.acquire()
+		try:
+			msgList = list(self.parentQueue)
+			self.parentQueue = []
+			return msgList
+		finally:
+			self.lock.release()
+
+backup_servers = BackupServers()
+
+class CommunicationServer(Component):
+	def __init__(self, msg, address, port):
+		Component.__init__(self, msg)
+		self.type = Component.CommunicationServer
+		self.address = address
+		self.port = port
+
+	def parseStatus(self, msg):
+		pass
+
+	def sendMessages(self, conn):
+		response = messages.NoOperation(components.getBackupServersList())
+		conn.send(response)
+		for registerMsg in backup_servers.getRegisterMessages():
+			conn.send(registerMsg)
+
+Component.Types["CommunicationServer"] = CommunicationServer

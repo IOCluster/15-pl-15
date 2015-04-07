@@ -1,5 +1,6 @@
 from argparse import Namespace
 import json
+import socket as sys_socket
 
 SEPARATOR = b"\x17"	# == ctrl+w
 # SEPARATOR = b"\n"
@@ -8,6 +9,7 @@ class Connection:
 	def __init__(self, socket, timeout=None):
 		self.buffer = b""
 		self.socket = socket
+		self.socket.setsockopt(sys_socket.SOL_SOCKET, sys_socket.SO_REUSEADDR, 1)
 		if timeout:
 			self.socket.settimeout(timeout)
 
