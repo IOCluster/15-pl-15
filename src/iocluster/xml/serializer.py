@@ -2,10 +2,13 @@ import xml.etree.ElementTree as ET
 
 xs = "{http://www.w3.org/2001/XMLSchema}"
 
-def serialize(data, el, ns=None):
+def serialize(data, el, encoder=None, ns=None):
 
 	if data is None:
 		return ""
+
+	if encoder:
+		data = encoder(data)
 
 	#print(el.attrib['name'], data)
 
@@ -40,7 +43,7 @@ def serialize(data, el, ns=None):
 
 				for e in seq:
 					if e.attrib["name"] in data:
-						out += serialize(data[e.attrib["name"]], e)
+						out += serialize(data[e.attrib["name"]], e, encoder)
 					elif e.attrib.get("minOccurs", "1") != "0":
 						raise ValueError
 
@@ -51,7 +54,7 @@ def serialize(data, el, ns=None):
 					raise ValueError
 
 				for v in data:
-					out += serialize(v, seq[0])
+					out += serialize(v, seq[0], encoder)
 
 	else:
 		print("ERROR: Expected type, got " + el[0].tag)
@@ -61,8 +64,9 @@ def serialize(data, el, ns=None):
 	return out
 
 class Serializer:
-	def __init__(self, xsd):
+	def __init__(self, xsd, encoder):
 		self.schema = ET.parse(xsd).getroot()
+		self.encoder = encoder
 
 	def __call__(self, data):
-		return serialize(data, self.schema[0], self.schema.attrib["targetNamespace"])
+		return serialize(data, self.schema[0], self.encoder, ns=self.schema.attrib["targetNamespace"])

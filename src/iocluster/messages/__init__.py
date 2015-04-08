@@ -1,6 +1,9 @@
+from iocluster.messages import xml as transport
+
 from argparse import Namespace
-import json
 import socket as sys_socket
+
+DEBUG_MESSAGES = False
 
 SEPARATOR = b"\x17"	# == ctrl+w
 # SEPARATOR = b"\n"
@@ -29,18 +32,17 @@ class Connection:
 				yield parse(self.buffer[:self.buffer.find(SEPARATOR)])
 				self.buffer = self.buffer[self.buffer.find(SEPARATOR) + 1:]
 
-# TODO Support that XML shit.
-
-class NamespaceEncoder(json.JSONEncoder):
-	def default(self, o):
-		if isinstance(o, Namespace):
-			return o.__dict__
-
 class Message(Namespace):
 	Types = dict()
 
 	def __str__(self):
-		return type(self).__name__ + " " + json.dumps(self.__dict__, cls=NamespaceEncoder)
+		d = transport.dump(self)
+		if DEBUG_MESSAGES:
+			print("OUTGOING MESSAGE --------------------")
+			print(Namespace.__str__(self))
+			print("--------------------")
+			print(d)
+		return d
 
 	def __bytes__(self):
 		return str(self).encode("utf-8")
@@ -122,8 +124,12 @@ Message.Types["SolvePartialProblems"] = SolvePartialProblems
 
 def parse(message):
 	message = message.decode("utf-8")
-	t, data = message.split(" ", 1)
-	data = json.loads(data)
+	t, data = transport.parse(message)
+	if DEBUG_MESSAGES:
+		print("INCOMING MESSAGE --------------------")
+		print(message)
+		print("--------------------")
+		print(t, data)
 	if type(data) == dict:
 		return Message.Types[t](**data)
 	else:
