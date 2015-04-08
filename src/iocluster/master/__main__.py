@@ -309,7 +309,7 @@ def registerBackup(address, port, assumeId=None):
 	print("{time:s} Connecting to {address:s}:{port:d}...".format(time=Utilities.current_time_formatted(), address=address, port=port))
 	while True:
 		try:
-			conn = messages.Connection(connect((address, port), ('::', args.port)))
+			conn = messages.Connection(connect((address, port), ('', args.port)))
 			connections_manager.add(conn)
 			break
 		except Exception as msg:
