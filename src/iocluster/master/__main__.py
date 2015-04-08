@@ -189,9 +189,9 @@ def removeInactiveBackup():
 			deregister_msg.Id = component.id
 			deregister_msg.Deregister = True
 			if config.is_backup:
-				backup_servers.parentQueueAppend(parent_msg)
+				backup_servers.parentQueueAppend(deregister_msg)
 			else:
-				backup_servers.registerQueueAppend(backup_msg)
+				backup_servers.registerQueueAppend(deregister_msg)
 
 def removeInactiveComponents():
 	removeInactiveBackup()
