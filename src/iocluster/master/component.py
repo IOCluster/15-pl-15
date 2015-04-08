@@ -37,7 +37,8 @@ class Components:
 		return [component for component in self.active() if component.type == Component.CommunicationServer]
 
 	def getBackupServersList(self):
-		return [{ "address": component.address, "port": component.port } for component in self.BackupServers()]
+		backups = [{ "address": component.address, "port": component.port } for component in self.BackupServers()]
+		return [backups[0]] if backups else []
 
 	def getThreadCount(self):
 		return sum(len(component.threads.list) for component in self.ComputationalNodes())

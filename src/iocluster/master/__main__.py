@@ -283,7 +283,7 @@ def keepAlive():
 		try:
 			conn = messages.Connection(socket.create_connection((config.parent_address, config.parent_port)))
 			connections_manager.add(conn)
-			msg = messages.Status(config.id, [])
+			msg = messages.Status(config.id, [{ "State": "Idle" }])
 			conn.send(msg)
 			# Inform parent about lower backup registrations and deregistrations
 			for msg in backup_servers.getParentMessages():
