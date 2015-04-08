@@ -1,4 +1,5 @@
 from .serializer import Serializer
+from .deserializer import Deserializer
 import xml.etree.ElementTree as ET
 import xml.dom.minidom
 
@@ -15,12 +16,16 @@ def prettify(dom):
 			out += line + '\n'
 	return out
 
-def test(msg_type, data):
+def read_example_xml(msg_type):
 	example_xml = open('UCC_2015/xml/' + msg_type + '.xml').read()
-	example_xml2 = ""
+	out = ""
 	for line in example_xml.split("\n"):
-		example_xml2 += line.strip() + "\n"
-	orig = xml.dom.minidom.parseString(example_xml2)
+		out += line.strip() + "\n"
+	return out
+
+def test_serialize(msg_type, data):
+	example_xml = read_example_xml(msg_type)
+	orig = xml.dom.minidom.parseString(example_xml)
 	ser = Serializer("UCC_2015/xml/" + msg_type + ".xsd")
 	our = xml.dom.minidom.parseString(ser(data))
 
@@ -31,6 +36,19 @@ def test(msg_type, data):
 	print(prettify(orig))
 	print(prettify(our))
 
+def test_deserialize(msg_type, data):
+	read_data = Deserializer("UCC_2015/xml/" + msg_type + ".xsd")(read_example_xml(msg_type))
+
+	if data == read_data:
+		print(msg_type + " OK")
+		return
+
+	print(data)
+	print(read_data)
+
+def test(msg_type, data):
+	test_serialize(msg_type, data)
+	test_deserialize(msg_type, data)
 
 data = "SWRlYWx5IHNhIGphayBnd2lhemR5IC0gbmllIG1vem5hIGljaCBvc2lhZ25hYywgYWxlIG1v\nem5hIHNpZSBuaW1pIGtpZXJvd2FjLg0K"
 n_data_n = "\n" + data + "\n"
