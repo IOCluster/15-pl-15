@@ -36,7 +36,7 @@ def deserialize(xml, el, ns):
 			seq = el[0][0]
 
 			maxOccurs = seq[0].attrib.get("maxOccurs", "1")
-			if maxOccurs == "1":
+			if maxOccurs == "1" and seq[0].attrib["name"] != "BackupCommunicationServer":
 				# dict.
 				for e in seq:
 					matching_children = [child for child in xml if child.tag == "{" + ns + "}" + e.attrib["name"]]
