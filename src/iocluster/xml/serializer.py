@@ -64,7 +64,7 @@ def serialize(data, el, encoder=None, ns=None):
 	return out
 
 class Serializer:
-	def __init__(self, xsd, encoder):
+	def __init__(self, xsd, encoder=None):
 		self.schema = ET.parse(xsd).getroot()
 		self.encoder = encoder
 
