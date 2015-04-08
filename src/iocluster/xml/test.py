@@ -70,3 +70,5 @@ test("SolveRequest", dict(ProblemType="TSP", SolvingTimeout=3600000, Data=data, 
 test("SolveRequestResponse", dict(Id=12))
 
 test("Status", dict(Id=12, Threads=[dict(State="Idle"), dict(State="Idle"), dict(State="Busy", HowLong=1244656, ProblemInstanceId=1212, TaskId=123, ProblemType="TSP")]))
+
+#test("Error", dict(ErrorType="UnknownSender"))
