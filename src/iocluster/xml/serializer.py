@@ -7,9 +7,13 @@ def serialize(data, el, ns=None):
 	if data is None:
 		return ""
 
-	out = '<' + el.attrib['name'] + (' xmlns="' + ns + '"' if ns else "") + '>'
+	#print(el.attrib['name'], data)
+
+	out = '<' + el.attrib['name'] + (' xmlns="' + ns + '"' if ns else "")
 
 	if "type" in el.attrib or el[0].tag == xs + "simpleType":
+		out += '>'
+
 		if "type" in el.attrib and el.attrib["type"] == "xs:boolean":
 			out += "true" if data else "false"
 		else:
@@ -17,26 +21,37 @@ def serialize(data, el, ns=None):
 
 	elif el[0].tag == xs + "complexType":
 
-		if el[0][0].tag != xs + "sequence":
-			print("ERROR: Only sequence complex types are supported.")
+		attributes = [x for x in el[0] if x.tag == xs + "attribute"]
+		other = [x for x in el[0] if x.tag != xs + "attribute"]
 
-		seq = el[0][0]
+		for attr in attributes:
+			if attr.attrib["name"] in data:
+				out += ' {}="{}"'.format(attr.attrib["name"], data[attr.attrib["name"]])
 
-		if type(data) == dict:
+		out += '>'
 
-			for e in seq:
-				if e.attrib["name"] in data:
-					out += serialize(data[e.attrib["name"]], e)
-				elif e.attrib.get("minOccurs", "1") != "0":
+		if len(other):
+			if other[0].tag != xs + "sequence":
+				print("ERROR: Only sequence complex types are supported.")
+
+			seq = el[0][0]
+
+			if type(data) == dict:
+
+				for e in seq:
+					if e.attrib["name"] in data:
+						out += serialize(data[e.attrib["name"]], e)
+					elif e.attrib.get("minOccurs", "1") != "0":
+						raise ValueError
+
+			elif type(data) == list:
+
+				maxOccurs = seq[0].attrib.get("maxOccurs", "1")
+				if maxOccurs != "unbounded" and int(maxOccurs) < len(data):
 					raise ValueError
 
-		elif type(data) == list:
-
-			if seq[0].attrib.get("maxOccurs", "1") != "unbounded":
-				raise ValueError
-
-			for v in data:
-				out += serialize(v, seq[0])
+				for v in data:
+					out += serialize(v, seq[0])
 
 	else:
 		print("ERROR: Expected type, got " + el[0].tag)
