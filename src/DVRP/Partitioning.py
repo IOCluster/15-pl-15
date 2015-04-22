@@ -1,6 +1,5 @@
 def algorithm_u(ns, m):
-    """Algorytm znajdujacy wszystkie podzialy zbioru ns o licznosci m"""
-        
+    """Algorytm znajdujacy wszystkie podzialy o licznosci m zbioru ns ( tzn. m zbiorow w podziale)""" 
     def visit(n, a):
         ps = [[] for i in range(m)]
         for j in range(n):
@@ -81,14 +80,40 @@ def pretty_print(parts):
     print( '; '.join('|'.join(''.join(str(e) for e in loe) for loe in part) for part in parts))
 
 
-def PartitionProblem(n_nodes, n_depots, n_visits, which_node):
+def Partition(n_nodes, n_depots, n_visits, which_node):
     P = [i+n_depots for i in range(n_visits)]
     l = len(P)
     count = 0;
     for k in range(1, l):
-        parts = algorithm_u(P, k)
-        count  = -1;
-        for part in parts:
-            count = (count + 1) % n_nodes
-            if(count == which_node):
-                part = yield [[ e for e in loe ] for loe in part ]          
+        if(k == 1):
+            yield [P]
+        else:
+            parts = algorithm_u(P, k)
+            count  = 0;
+            for part in parts:
+                count = (count + 1) % n_nodes
+                if(count == which_node):
+                    part = yield part          
+
+
+def PartitionProblem(vrp, n_nodes, which_node):
+    P = [i+vrp.num_depots for i in range(vrp.num_visits)]
+    l = len(P)
+    count = 0
+    for k in range(1, l):
+        if(k == 1):
+            if(sum(vrp.demands[i-vrp.num_depots] for i in P) < vrp.caps):
+                yield [P]
+        else:
+            parts = algorithm_u(P, k)
+            count  = 0
+            for part in parts:
+                count = (count + 1) % n_nodes
+                if(count == which_node):
+                    check = True
+                    for loe in part:
+                        check &= (sum(vrp.demands[i-vrp.num_depots] for i in loe) < vrp.caps)
+                    if(check):
+                        part = yield part   
+               
+
