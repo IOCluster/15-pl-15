@@ -102,7 +102,7 @@ def PartitionProblem(vrp, n_nodes, which_node):
     count = 0
     for k in range(1, l):
         if(k == 1):
-            if(sum(vrp.demands[i-vrp.num_depots] for i in P) < vrp.caps):
+            if(sum([vrp.demands[i-vrp.num_depots] for i in P]) + vrp.caps >= 0):
                 yield [P]
         else:
             parts = algorithm_u(P, k)
@@ -111,8 +111,8 @@ def PartitionProblem(vrp, n_nodes, which_node):
                 count = (count + 1) % n_nodes
                 if(count == which_node):
                     check = True
-                    for loe in part:
-                        check &= (sum(vrp.demands[i-vrp.num_depots] for i in loe) < vrp.caps)
+                    for subroute in part:
+                        check &= (sum([vrp.demands[i-vrp.num_depots] for i in subroute]) + vrp.caps >= 0)
                     if(check):
                         part = yield part   
                

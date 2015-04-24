@@ -20,7 +20,7 @@ for ind in a.locations:
 	
 #Testujemy tworzenie VRP z pliku
 print('\n')
-a = VRP.CreateFromFile("../okul12D.vrp")
+a = VRP.CreateFromFile("okul12D.vrp")
 print(a.__dict__)
 
 #Testujemy zamiane VRP na tekst
