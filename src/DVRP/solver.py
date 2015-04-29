@@ -71,6 +71,7 @@ def SolvePartialProblem(vrp, route):
                 for p in s:
                     part_R.append(p)
                 part_R.append(depN)
+                part_min = part_L
             #end for s
             
         #jesli zadna permutacja nie spelnia, to zwracamy -1
@@ -78,7 +79,7 @@ def SolvePartialProblem(vrp, route):
             return[-1, []]
         
         #znalezlismy najlepsza permutacje
-        L += part_L
+        L += part_min
         R.append(part_R)
 
     #znalezlismy najlepsze rozwiazanie podproblemu
