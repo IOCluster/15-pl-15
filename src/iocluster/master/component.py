@@ -103,7 +103,7 @@ class TaskManager(Component):
 				"Data": task.SolutionData,
 				"TimeoutOccured": task.TimeoutOccured
 			})
-		response = messages.Solutions(problem.Id, problem.ProblemType, solutions)
+		response = messages.Solutions(problem.Id, problem.ProblemType, solutions, problem.CommonData)
 		conn.send(response)
 
 	def sendMessages(self, conn):

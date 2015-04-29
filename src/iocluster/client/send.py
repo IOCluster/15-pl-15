@@ -17,6 +17,6 @@ parser.add_argument('--port', '-p', type=int, default=2121, help="port to connec
 args = parser.parse_args(args)
 
 master = messages.Connection(socket.create_connection((args.address, args.port)))
-request = messages.SolveRequest("TSP", "SWRlYWx5IHNhIGphayBnd2lhemR5IC0gbmllIG1vem5hIGljaCBvc2lhZ25hYywgYWxlIG1vem5hIHNpZSBuaW1pIGtpZXJvd2FjLg0K", SolvingTimeout=10)
+request = messages.SolveRequest("Dummy", "3", SolvingTimeout=10)
 master.send(request)
 print("Problem ID: " + str(next(iter(master)).Id))

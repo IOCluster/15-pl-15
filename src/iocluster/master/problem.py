@@ -129,7 +129,7 @@ class Problem:
 				'ComputationsTime': self.getOngoingComputationsTime(),
 				'Type': 'Ongoing'
 			}]
-		return messages.Solutions(self.Id, self.ProblemType, solutions)
+		return messages.Solutions(self.Id, self.ProblemType, solutions, self.CommonData)
 
 class Tasks:
 	def __init__(self, problem):

@@ -10,6 +10,8 @@ from iocluster import messages
 from iocluster.util import current_time_ms
 import iocluster.util as Utilities
 
+from dummysolver import TaskSolver
+
 argfix = {
 	"-address": "--address",
 	"-port": "--port",
@@ -66,33 +68,21 @@ def messageNoOperation(msg):
 	print("Response: NoOperation")
 	config.backups = msg.BackupCommunicationServers
 
-# TODO MergeSolutions
 def mergeSolutions(thread):
 	msg = thread.message
 	problemType = msg.ProblemType
-	problemId = msg.Id
-	commonData = msg.CommonData
-	value = 0
-	sumTime = 0
-	for solution in msg.Solutions:
-		taskId = solution.TaskId
-		timeoutOccured = solution.TimeoutOccured
-		solutionType = solution.Type
-		computationsTime = solution.ComputationsTime
-		solutionData = solution.Data
-		value += int(solutionData)
-		sumTime += int(solution.ComputationsTime)
-	try:
-		time.sleep(3)
-	except:
-		pass
+
+	solver = TaskSolver(msg.CommonData)
+	value = solver.merge(list(solution.Data for solution in msg.Solutions))
+	sumTime = sum(int(solution.ComputationsTime) for solution in msg.Solutions)
+
 	solutions = [{
 		"TimeoutOccured": False,
 		"Type": "Final", # Partial
 		"ComputationsTime": current_time_ms() - thread.started + sumTime,
 		"Data": str(value)
 	}]
-	message = messages.Solutions(msg.Id, msg.ProblemType, solutions)
+	message = messages.Solutions(msg.Id, msg.ProblemType, solutions, msg.CommonData)
 	pending_messages.add(message)
 	threads.remove(thread)
 
@@ -102,27 +92,18 @@ def messageSolutions(msg):
 	threads.append(thread)
 	threading.Thread(target=mergeSolutions, args=(thread,)).start()
 
-# TODO DivideProblem!
 def divideProblem(thread):
 	msg = thread.message
 	problemType = msg.ProblemType
-	problemId = msg.Id
-	problemData = msg.Data
-	threadCount = msg.ComputationalNodes
-	thisId = msg.NodeID
-	try:
-		time.sleep(3)
-	except:
-		pass
-	commonData = str(3)
-	partialProblems = []
-	for i in range(6):
-		partialProblems.append({
-			"TaskId": i,
-			"Data": str(i),
-			"NodeID": config.id
-		})
-	message = messages.SolvePartialProblems(msg.Id, msg.ProblemType, commonData, partialProblems)
+
+	solver = TaskSolver(msg.Data)
+	partialProblems = [{
+		"TaskId": i,
+		"Data": str(problem),
+		"NodeID": config.id
+	} for i, problem in enumerate(solver.divide(msg.ComputationalNodes))]
+
+	message = messages.SolvePartialProblems(msg.Id, msg.ProblemType, msg.Data, partialProblems)
 	pending_messages.add(message)
 	threads.remove(thread)
 
@@ -135,21 +116,15 @@ def messageDivideProblem(msg):
 def solvePartialProblem(thread):
 	msg = thread.message
 	problemType = msg.ProblemType
-	problemId = msg.Id
-	commonData = msg.CommonData
-	solvingTimeout = msg.SolvingTimeout
 	partialProblem = [item for item in msg.PartialProblems if item.TaskId == thread.assignedId][0]
-	taskId = partialProblem.TaskId
-	data = int(partialProblem.Data) * int(commonData)
-	tmNodeId = partialProblem.NodeID
-	try:
-		time.sleep(3)
-	except:
-		pass
+
+	solver = TaskSolver(msg.CommonData)
+	data = solver.solve(partialProblem.Data, msg.SolvingTimeout)
+
 	solutions = [] # Type=Partial
-	solution = messages.Solution(Type="Final", ComputationsTime=(current_time_ms() - thread.started), TimeoutOccured=False, TaskId=taskId, Data=data)
+	solution = messages.Solution(Type="Final", ComputationsTime=(current_time_ms() - thread.started), TimeoutOccured=False, TaskId=partialProblem.TaskId, Data=data)
 	solutions.append(solution)
-	message = messages.Solutions(problemId, msg.ProblemType, solutions, msg.CommonData)
+	message = messages.Solutions(msg.Id, msg.ProblemType, solutions, msg.CommonData)
 	pending_messages.add(message)
 	threads.remove(thread)
 
