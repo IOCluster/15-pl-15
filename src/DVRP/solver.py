@@ -18,7 +18,7 @@ def SolvePartialProblem(vrp, route):
     max_route = vrp.num_visits*max_dep_dist*2
 #Na razie nie zajmujemy sie tym przypadkiem
     if(len(route) > vrp.num_vehicles):
-        return max_route
+        return [-1, []]
 
     R = []
     L = 0
@@ -33,7 +33,6 @@ def SolvePartialProblem(vrp, route):
             up_L = min(dep_dist[q[0]]) + sum([ dist[q[i]][q[i+1]] for i in range(len(q)-1) ]) + min(dep_dist[q[-1]])
             #jesli jest dluzsza od juz znalezionego min, to nie spr
             if(up_L > part_min):
-                print([up_L, part_min])
                 continue
 
             #obliczamy czasy przyjazdu
@@ -43,12 +42,12 @@ def SolvePartialProblem(vrp, route):
             dep0 =  dep_dist[q[0]].index(val0)
             val0 += times[q[0]]
             arv.insert(0, val0)
-            #i obliczamy arv dla dalszym zamowien
+            #i obliczamy arv dla dalszych zamowien
             for i in range(1,len(q)):
                 val = max(times[q[i]] + dist[q[i]][q[i-1]], arv[i-1] + dur[q[i-1]] + dist[q[i]][q[i-1]])
                 arv.insert(i, val)
 
-            #teraz szukamy depot, do ktoregojestemy w stanie wrocic
+            #teraz szukamy depot, do ktorego jestesmy w stanie wrocic
                           #przed zamknieciem i wracamy do najblizszego
             #jesli nie ma takiego, to przechodzimy do nastepnego przypadku
             valN = max(dep_dist[q[-1]])+1
@@ -66,21 +65,22 @@ def SolvePartialProblem(vrp, route):
             #jesli jest lepsza od minimum, to
             #zapisujemy ja i dlugosc drogi
             part_L = val0 + sum([ dist[q[i]][q[i+1]] for i in range(len(q)-1) ]) + valN
-            if(part_min >= part_L):
+            if(part_min > part_L):
                 part_R = []
                 part_R.append(dep0)
                 for p in s:
                     part_R.append(p)
                 part_R.append(depN)
+            #end for s
             
         #jesli zadna permutacja nie spelnia, to zwracamy -1
         if(part_R == []):
-            return [-1 , [] ]
+            return[-1, []]
         
         #znalezlismy najlepsza permutacje
         L += part_L
         R.append(part_R)
 
-    #znalezlismy najlepsz rozwiazanie podproblemu
+    #znalezlismy najlepsze rozwiazanie podproblemu
     return [L, R]
 #dep_dist[vis][dep]
