@@ -1,4 +1,4 @@
-from parseVRP import Point
+from DVRP.parseVRP import Point
 from itertools import permutations
 
 def SolvePartialProblem(vrp, route):

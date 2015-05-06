@@ -10,7 +10,7 @@ from iocluster import messages
 from iocluster.util import current_time_ms
 import iocluster.util as Utilities
 
-from dummysolver import TaskSolver
+from DVRP.TaskSolver import TaskSolver
 
 argfix = {
 	"-address": "--address",
