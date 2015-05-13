@@ -41,7 +41,7 @@ class TaskSolver:
     def merge(self, solutions):
         sol1 = json.loads(solutions[0])
         minL = sol1[0]
-        minsol = []
+        minsol = sol1[1]
         for sol in solutions:
             psol = json.loads(sol)
             L = psol[0]
