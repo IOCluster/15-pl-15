@@ -10,5 +10,7 @@ Open another tab:
 python -m iocluster.slave -p 2121
 Open another tab:
 python -m iocluster.client.send
-python -m iocluster.client.ask 0
+Open another tab:
+python -m iocluster.master -b --primary_address localhost --primary_port 2121 -p 2134
+python -m iocluster.client.ask 0 [-p 2134]
 ```
