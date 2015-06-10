@@ -16,9 +16,10 @@ def SolvePartialProblem(vrp, route):
     max_dep_dist = max([max(l) for l in dep_dist])
 
     max_route = vrp.num_visits*max_dep_dist*2
-#Na razie nie zajmujemy sie tym przypadkiem
+
     if(len(route) > vrp.num_vehicles):
-        return [-1, []]
+        #TODO
+        
 
     R = []
     L = 0
