@@ -159,7 +159,7 @@ def keepAlive():
 	while True:
 		try:
 			# Wait keepAlive period
-			time.sleep(config.timeout/2)
+			time.sleep(config.timeout/5)
 		except:
 			break
 

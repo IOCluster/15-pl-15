@@ -7,6 +7,7 @@ import threading
 import socket
 import signal
 from time import strftime
+from iocluster.util import current_time_ms
 from iocluster import messages
 from iocluster.master.component import components, backup_servers, CommunicationServer
 from iocluster.master.problem import problems, Problem
@@ -35,6 +36,7 @@ config.child_port = None
 config.child_id = None
 config.is_backup = args.backup
 config.timeout = args.timeout
+problemStartTime = {}
 
 # The important
 # information that are synchronized are the existing CN and TM and their current activities and the data of
@@ -108,6 +110,7 @@ def messageStatus(conn, msg):
 def messageSolveRequest(conn, msg):
 	id = problems.add(msg)
 	print("-> AddProblem :: #{id:d} Type: {type:s} Timeout: {timeout:d}".format(type=msg.ProblemType, timeout=msg.SolvingTimeout, id=id))
+	problemStartTime[id] = current_time_ms()
 	response = messages.SolveRequestResponse(id)
 	conn.send(response)
 
@@ -141,6 +144,10 @@ def messageSolutions(conn, msg):
 	# Received final merged solution from TM 
 	elif problem.status == Problem.Computed:
 		print("-> Merged Solutions :: #{id:d} Type: {type:s}".format(type=msg.ProblemType, id=msg.Id))
+		time = current_time_ms() - problemStartTime[msg.Id]
+		print("-> Solve time: {time:d}".format(time=time))
+		with open("Output {}.txt".format(msg.Id), "w") as text_file:
+			print("{}\n{}\n".format(time, msg.Solutions[0].Data), file=text_file)
 	problem.updateWithSolutions(msg)
 
 	backup_msg = copy.deepcopy(msg)

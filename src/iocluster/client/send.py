@@ -4,6 +4,7 @@ import socket
 import time
 import threading
 from iocluster import messages
+import base64
 
 argfix = {
 	"-address": "--address",
